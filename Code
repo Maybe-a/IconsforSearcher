@@ -13,10 +13,10 @@
 
     // Editable Icon Dictionary
     const ICONS = {
-        1: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_1.png',
-        2: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_2.png',
-        3: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_3.png',
-        4: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_4.png',
+        1: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_1.webp',
+        2: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_2.webp',
+        3: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_3.webp',
+        4: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_4.webp',
         'GS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_0.png',
         'LS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_1.png',
         'SnS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_2.png',
