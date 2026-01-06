@@ -1,11 +1,10 @@
 // ==UserScript==
-// @name         Monster Hunter Armor Set Searcher Card Generator
+// @name         MH WIKI ASS Build Card Maker.
 // @namespace    http://tampermonkey.net/
-// @version      2.5
-// @description  Interactive build card: Manual selection and placement of decorations. Features tinyURL shortener for readable QR codes, right-click removal, and conditional header visibility.
+// @version      3.1
+// @description  Fixed combo decos. and breaking for alot of other stuff.
 // @match         *://*.wiki-db.com/sim/*
 // @grant         none
-// @author        Kat
 // @require       https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
 // @require       https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js
 // ==/UserScript==
@@ -19,9 +18,9 @@
         3: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_3.webp',
         4: 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/deco_4.webp',
         'GS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_0.png',
-        'LS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_3.png',
-        'SnS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_1.png',
-        'DB': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_2.png',
+        'LS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_1.png',
+        'SnS': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_2.png',
+        'DB': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_3.png',
         'Ham': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_4.png',
         'HH': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_5.png',
         'LNC': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_6.png',
@@ -29,8 +28,8 @@
         'SWA': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_8.png',
         'CB': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_9.png',
         'IG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_10.png',
-        'LBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_13.png',
-        'HBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_12.png',
+        'LBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_12.png',
+        'HBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_13.png',
         'Bow': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_11.png',
         'HELM': '/static/mhsim/simicons/head.png'
     };
@@ -44,7 +43,9 @@
         .mhw-card-wrapper {
             display: flex; flex-direction: column; gap: 15px; background-color: #0c0c0c; color: #efefef;
             font-family: 'Segoe UI', sans-serif; padding: 35px; border-radius: 4px;
-            border: 1px solid #222; margin: 20px 0; width: 1050px; position: relative; overflow: hidden;
+            border: 1px solid #222; margin: 20px 0; width: 1050px;
+            position: relative; overflow: hidden;
+            padding-bottom: 120px; /* Added height to prevent QR from clipping into skills/bank */
         }
         .mhw-build-title-display { font-size: 2.2em; font-weight: bold; color: #fff; border-bottom: 2px solid #3498db; margin-bottom: 15px; padding-bottom: 5px; }
         .mhw-main-row { display: flex; gap: 25px; }
@@ -53,6 +54,7 @@
 
         .mhw-piece-group { display: flex; flex-direction: column; background: #181818; border-left: 4px solid #3498db; margin-bottom: 2px; }
         .mhw-piece-header { padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 0.9em; font-weight: 600; }
+        .mhw-innate-skills { margin-left: auto; color: #888; font-size: 0.85em; font-weight: normal; font-style: italic; }
 
         .mhw-slot-row { display: flex; border-top: 1px solid #222; background: #111; padding: 2px 0; }
         .mhw-slot-box {
@@ -64,7 +66,6 @@
         .mhw-slot-filled { color: #fff; font-weight: normal; }
 
         .mhw-icon-img { height: 20px; width: 20px; object-fit: contain; }
-        .mhw-icon-large { height: 40px; width: 40px; }
 
         .mhw-deco-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
         .mhw-deco-btn {
@@ -77,19 +78,21 @@
         .mhw-deco-qty { color: #f1c40f; font-weight: bold; }
 
         .mhw-skill-item { background: #181818; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid #3498db;}
-        .mhw-skill-name { font-weight: 600; font-size: 0.95em; }
         .mhw-skill-lv { color: #f1c40f; font-weight: bold; font-size: 0.9em; }
 
         .mhw-overcap-legend { font-size: 0.7em; color: #888; margin-top: 5px; font-style: italic; }
 
         .mhw-qr-container {
-            position: absolute; bottom: 0; right: 0;
-            width: 110px; height: 110px;
-            background: #fff; padding: 8px; border-top-left-radius: 4px;
+            position: absolute;
+            bottom: 25px;
+            left: 25px;
+            width: 90px; height: 90px;
+            background: #fff; padding: 6px;
             display: flex; align-items: center; justify-content: center;
-            z-index: 10;
+            border-radius: 4px;
+            z-index: 100;
         }
-        .mhw-qr-container canvas, .mhw-qr-container img { width: 94px !important; height: 94px !important; }
+        .mhw-qr-container canvas, .mhw-qr-container img { width: 78px !important; height: 78px !important; }
 
         .mhw-controls { display: flex; flex-wrap: wrap; gap: 12px; margin: 15px 0; background: #1a1a1a; padding: 15px; border-radius: 5px; border: 1px solid #333; align-items: center; }
         .mhw-input, .mhw-select { background: #000; color: white; border: 1px solid #444; padding: 8px 12px; border-radius: 3px; }
@@ -98,6 +101,14 @@
         .mhw-legacy-toggle { display: flex; align-items: center; gap: 8px; color: #888; font-size: 0.85em; cursor: pointer; }
     `;
     document.head.appendChild(style);
+
+    async function shortenUrl(longUrl) {
+        try {
+            const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
+            if (response.ok) return await response.text();
+        } catch (e) { console.error("TinyURL failed", e); }
+        return longUrl;
+    }
 
     function parseSlots(str) {
         if (!str || str === "0-0-0" || str === "--" || str === "0") return [];
@@ -112,14 +123,6 @@
         return [];
     }
 
-    async function shortenUrl(longUrl) {
-        try {
-            const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(longUrl)}`);
-            if (response.ok) return await response.text();
-        } catch (e) {}
-        return longUrl;
-    }
-
     function extractData(containerDiv) {
         const tables = containerDiv.querySelectorAll('table');
         if (tables.length < 2) return null;
@@ -130,10 +133,17 @@
         tables[0].querySelectorAll('tr').forEach(tr => {
             const firstCell = tr.querySelector('td:first-child');
             if (firstCell && firstCell.innerText.trim().includes("Deco")) {
-                rawDecos = tr.querySelector('td:nth-child(2)')?.innerText.trim();
+                // Extract decorations from the span elements
+                const decoSpans = tr.querySelectorAll('span[style*="margin-right"]');
+                const decoList = [];
+                decoSpans.forEach(span => {
+                    const text = span.innerText.trim();
+                    if (text) decoList.push(text);
+                });
+                rawDecos = decoList.join(' ');
             } else {
                 const link = tr.querySelector('td:nth-child(2) a');
-                if (link) equipment.push({ name: link.innerText.trim(), img: link.querySelector('img')?.src, multiSlots: [] });
+                if (link) equipment.push({ name: link.innerText.trim(), img: link.querySelector('img')?.src, multiSlots: [], innate: [] });
             }
         });
 
@@ -158,15 +168,37 @@
                 return results;
             };
 
-            if (equipment[5]) equipment[5].multiSlots = parseCellSlots(cells[7], true);
-            if (equipment[4]) equipment[4].multiSlots = parseCellSlots(cells[6]);
-            if (equipment[3]) equipment[3].multiSlots = parseCellSlots(cells[5]);
-            if (equipment[2]) equipment[2].multiSlots = parseCellSlots(cells[4]);
-            if (equipment[1]) equipment[1].multiSlots = parseCellSlots(cells[3]);
-            if (equipment[0]) equipment[0].multiSlots = parseCellSlots(cells[2]);
+            // Map armor slot cells to equipment by matching the cell index to actual equipment index
+            // Need to build a mapping since equipment array shrinks when pieces are missing
+            const armorSlots = [
+                { cellIndex: 2, type: 'head' },
+                { cellIndex: 3, type: 'chest' },
+                { cellIndex: 4, type: 'arms' },
+                { cellIndex: 5, type: 'waist' },
+                { cellIndex: 6, type: 'boots' }
+            ];
 
-            const weaponMulti = parseCellSlots(cells[1], true);
-            equipment.weaponData = { multiSlots: weaponMulti };
+            let equipArmorIndex = 0;
+            armorSlots.forEach(({ cellIndex, type }) => {
+                if (cells[cellIndex] && cells[cellIndex].innerText.trim() !== '') {
+                    if (equipment[equipArmorIndex]) {
+                        equipment[equipArmorIndex].multiSlots = parseCellSlots(cells[cellIndex]);
+                        equipArmorIndex++;
+                    }
+                }
+            });
+
+            // Handle charm (always LAST in equipment array IF it exists, always at cells[7])
+            const charmIndex = equipment.length - 1;
+            if (charmIndex >= 0 && cells[7] && equipment[charmIndex].img && equipment[charmIndex].img.includes('charm.png')) {
+                equipment[charmIndex].multiSlots = parseCellSlots(cells[7], true);
+            }
+
+            // Handle weapon (always at cells[1])
+            if (cells[1]) {
+                const weaponMulti = parseCellSlots(cells[1], true);
+                equipment.weaponData = { multiSlots: weaponMulti, innate: [] };
+            }
         }
 
         let skills = [];
@@ -174,11 +206,18 @@
             if (i === 0 || tr.innerText.includes("Slots")) return;
             const cells = tr.querySelectorAll('td');
             if (cells.length >= 11 && cells[10].innerText.trim()) {
+                const name = cells[0].innerText.trim();
+                const weaponPts = parseInt(cells[1].innerText) || 0;
+                const charmPts = parseInt(cells[7].innerText) || 0;
+
+                if (weaponPts > 0) equipment.weaponData.innate.push(name);
+                if (charmPts > 0 && equipment[5]) equipment[5].innate.push(name);
+
                 const lvM = cells[10].innerText.match(/Lv(\d+)/i);
                 const totalPoints = parseInt(cells[9].innerText) || 0;
                 const activeLevel = lvM ? parseInt(lvM[1]) : 0;
                 skills.push({
-                    name: cells[0].innerText.trim(),
+                    name: name,
                     full: cells[10].innerText.trim(),
                     level: activeLevel,
                     isOvercap: lvM && totalPoints > activeLevel
@@ -195,9 +234,12 @@
         card.className = 'mhw-card-wrapper';
         containerDiv.appendChild(card);
 
+        const shortUrl = await shortenUrl(window.location.href);
+
         selectedDeco = null;
         jewelInventory = [];
-        const matches = data.decorations.matchAll(/([a-zA-Z\s\d\+]+?)\s*(?:\[(\d)\])?\*(\d+)/g);
+        // Updated regex to handle combo decos with slashes like "Blaze/Handicraft Jwl [3]"
+        const matches = data.decorations.matchAll(/([a-zA-Z\s\d\+\/]+?)\s*(?:\[(\d)\])?\*(\d+)/g);
         for (const m of matches) {
             jewelInventory.push({ name: m[1].trim(), level: m[2] || m[1].match(/\d$/)?.[0] || "1", qty: parseInt(m[3]) });
         }
@@ -205,9 +247,13 @@
         const renderSlotGroups = (multiSlots, defaultIcon) => {
             return multiSlots.map(group => {
                 const icon = group.icon || defaultIcon;
+                // FIXED: Filter out 0 slots to prevent [0 0] display
+                const validSlots = group.slots.filter(s => s > 0);
+                if (validSlots.length === 0) return '';
+
                 return `
                     <div class="mhw-slot-row">
-                        ${group.slots.map(s => `
+                        ${validSlots.map(s => `
                             <div class="mhw-slot-box" data-lv="${s}">
                                 ${icon ? `<img src="${icon}" class="mhw-icon-img" style="opacity: 0.3">` : ''}
                                 [${s}] Empty Slot
@@ -217,23 +263,25 @@
             }).join('');
         };
 
-        const shortUrl = await shortenUrl(window.location.href);
-
         card.innerHTML = `
             ${buildName ? `<div class="mhw-build-title-display">${buildName}</div>` : ''}
-            <div class="mhw-main-row" style="margin-bottom: 50px;">
+            <div class="mhw-main-row">
                 <div class="mhw-column">
                     <div class="mhw-section-title">Equipment & Slotting</div>
                     <div class="mhw-piece-group" style="border-left-color: #e67e22;">
                         <div class="mhw-piece-header">
                             <img src="${ICONS[weaponType]}" class="mhw-icon-img">
                             ${weaponName || 'Weapon'}
+                            ${data.equipment.weaponData.innate.length > 0 ? `<span class="mhw-innate-skills">${data.equipment.weaponData.innate.join(' | ')}</span>` : ''}
                         </div>
                         ${renderSlotGroups(data.equipment.weaponData.multiSlots, ICONS[weaponType])}
                     </div>
                     ${data.equipment.map(e => `
                         <div class="mhw-piece-group">
-                            <div class="mhw-piece-header"><img src="${e.img}" class="mhw-icon-img"> ${e.name}</div>
+                            <div class="mhw-piece-header">
+                                <img src="${e.img}" class="mhw-icon-img"> ${e.name}
+                                ${e.innate.length > 0 ? `<span class="mhw-innate-skills">${e.innate.join(' | ')}</span>` : ''}
+                            </div>
                             ${renderSlotGroups(e.multiSlots, e.img)}
                         </div>
                     `).join('')}
@@ -265,8 +313,8 @@
 
         new QRCode(card.querySelector("#mhw-qr-code"), {
             text: shortUrl,
-            width: 100,
-            height: 100,
+            width: 80,
+            height: 80,
             colorDark : "#000000",
             colorLight : "#ffffff",
             correctLevel : QRCode.CorrectLevel.L
@@ -336,18 +384,17 @@
         const legacyLabel = document.createElement('label'); legacyLabel.className = 'mhw-legacy-toggle';
         const legacyCheck = document.createElement('input'); legacyCheck.type = 'checkbox';
         legacyCheck.onchange = (e) => isLegacyMode = e.target.checked;
-        //legacyLabel.append(legacyCheck, " Legacy Mode (Flat Slots) 'Currently Broken Do not Use.'");
+        legacyLabel.append(legacyCheck, " Legacy Mode (Flat Slots)");
         const genBtn = document.createElement('button'); genBtn.className = 'mhw-action-btn'; genBtn.innerText = "✨ Generate Card";
         const dlBtn = document.createElement('button'); dlBtn.className = 'mhw-action-btn mhw-dl-btn'; dlBtn.innerText = "💾 Save PNG";
         controls.append(bInput, wInput, wSelect, legacyLabel, genBtn, dlBtn);
         wrap.prepend(controls);
 
-        genBtn.onclick = () => { const data = extractData(wrap); if (data) renderCard(wrap, data, bInput.value, wInput.value, wSelect.value); };
+        genBtn.onclick = async () => { const data = extractData(wrap); if (data) await renderCard(wrap, data, bInput.value, wInput.value, wSelect.value); };
 
         dlBtn.onclick = () => {
             const card = wrap.querySelector('.mhw-card-wrapper');
             if (card) {
-                // Natural visibility state handled by updateBankUI will be captured.
                 setTimeout(() => {
                     html2canvas(card, { backgroundColor: "#0c0c0c", scale: 2, useCORS: true, logging: false }).then(canvas => {
                         const link = document.createElement('a');
