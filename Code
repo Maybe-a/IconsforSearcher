@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         MH WIKI ASS Build Card Maker.
+// @name         MHW ASS - Professional Build Card (Interactive)
 // @namespace    http://tampermonkey.net/
-// @version      3.1
-// @description  Fixed combo decos. and breaking for alot of other stuff.
+// @version      5.2
+// @description  Interactive build card: TinyURL shortening, bottom-left QR positioning, and zero-slot filtering. Fixed deco parsing and slot assignment.
 // @match         *://*.wiki-db.com/sim/*
 // @grant         none
 // @require       https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
@@ -351,6 +351,18 @@
                     const item = jewelInventory.find(i => i.name === currentInSlot);
                     if (item) item.qty++;
                     slot.classList.remove('mhw-slot-filled');
+
+                    // In legacy mode, restore original budget if this was a split slot
+                    if (isLegacyMode && slot.dataset.originalBudget) {
+                        slot.dataset.lv = slot.dataset.originalBudget;
+                        delete slot.dataset.originalBudget;
+                        // Remove any sibling slot that was created from splitting
+                        const nextSlot = slot.nextElementSibling;
+                        if (nextSlot && nextSlot.classList.contains('mhw-slot-box') && nextSlot.dataset.wasSplit) {
+                            nextSlot.remove();
+                        }
+                    }
+
                     slot.innerHTML = `[${slot.dataset.lv}] Empty Slot`;
                     delete slot.dataset.itemName;
                     updateBankUI();
@@ -361,16 +373,119 @@
             slot.onclick = () => {
                 if (removeDeco() && !selectedDeco) return;
                 if (selectedDeco && jewelInventory[selectedDeco.idx].qty > 0) {
-                    slot.classList.add('mhw-slot-filled');
-                    slot.innerHTML = `<img src="${ICONS[selectedDeco.level]}" class="mhw-icon-img"> ${selectedDeco.name}`;
-                    slot.dataset.itemName = selectedDeco.name;
-                    jewelInventory[selectedDeco.idx].qty--;
-                    if (jewelInventory[selectedDeco.idx].qty <= 0) { card.querySelector(`.mhw-deco-btn[data-idx="${selectedDeco.idx}"]`).classList.remove('selected'); selectedDeco = null; }
-                    updateBankUI();
+                    const slotLevel = parseInt(slot.dataset.lv);
+                    const decoLevel = parseInt(selectedDeco.level);
+
+                    // Legacy mode budget system
+                    if (isLegacyMode && decoLevel < slotLevel) {
+                        // Store original budget before splitting
+                        if (!slot.dataset.originalBudget) {
+                            slot.dataset.originalBudget = slotLevel;
+                        }
+
+                        // Fill current slot with the deco
+                        slot.classList.add('mhw-slot-filled');
+                        slot.innerHTML = `<img src="${ICONS[selectedDeco.level]}" class="mhw-icon-img"> ${selectedDeco.name}`;
+                        slot.dataset.itemName = selectedDeco.name;
+                        slot.dataset.lv = decoLevel;
+
+                        // Create new slot for remaining budget
+                        const remainingBudget = slotLevel - decoLevel;
+                        const slotRow = slot.parentElement;
+                        const newSlot = document.createElement('div');
+                        newSlot.className = 'mhw-slot-box';
+                        newSlot.dataset.lv = remainingBudget;
+                        newSlot.dataset.wasSplit = 'true';
+                        newSlot.innerHTML = `[${remainingBudget}] Empty Slot`;
+
+                        // Insert after current slot
+                        slot.after(newSlot);
+
+                        // Attach event handlers to new slot
+                        attachSlotHandlers(newSlot);
+
+                        jewelInventory[selectedDeco.idx].qty--;
+                        if (jewelInventory[selectedDeco.idx].qty <= 0) {
+                            card.querySelector(`.mhw-deco-btn[data-idx="${selectedDeco.idx}"]`).classList.remove('selected');
+                            selectedDeco = null;
+                        }
+                        updateBankUI();
+                    } else {
+                        // Normal slotting (non-legacy or exact match)
+                        slot.classList.add('mhw-slot-filled');
+                        slot.innerHTML = `<img src="${ICONS[selectedDeco.level]}" class="mhw-icon-img"> ${selectedDeco.name}`;
+                        slot.dataset.itemName = selectedDeco.name;
+                        jewelInventory[selectedDeco.idx].qty--;
+                        if (jewelInventory[selectedDeco.idx].qty <= 0) {
+                            card.querySelector(`.mhw-deco-btn[data-idx="${selectedDeco.idx}"]`).classList.remove('selected');
+                            selectedDeco = null;
+                        }
+                        updateBankUI();
+                    }
                 }
             };
             slot.oncontextmenu = (e) => { e.preventDefault(); removeDeco(); };
         });
+
+        // Helper function to attach handlers (for dynamically created slots)
+        function attachSlotHandlers(slot) {
+            const removeDeco = () => {
+                const currentInSlot = slot.dataset.itemName;
+                if (currentInSlot) {
+                    const item = jewelInventory.find(i => i.name === currentInSlot);
+                    if (item) item.qty++;
+                    slot.classList.remove('mhw-slot-filled');
+                    slot.innerHTML = `[${slot.dataset.lv}] Empty Slot`;
+                    delete slot.dataset.itemName;
+                    updateBankUI();
+                    return true;
+                }
+                return false;
+            };
+            slot.onclick = () => {
+                if (removeDeco() && !selectedDeco) return;
+                if (selectedDeco && jewelInventory[selectedDeco.idx].qty > 0) {
+                    const slotLevel = parseInt(slot.dataset.lv);
+                    const decoLevel = parseInt(selectedDeco.level);
+
+                    if (isLegacyMode && decoLevel < slotLevel) {
+                        slot.classList.add('mhw-slot-filled');
+                        slot.innerHTML = `<img src="${ICONS[selectedDeco.level]}" class="mhw-icon-img"> ${selectedDeco.name}`;
+                        slot.dataset.itemName = selectedDeco.name;
+                        const oldLevel = slotLevel;
+                        slot.dataset.lv = decoLevel;
+
+                        const remainingBudget = oldLevel - decoLevel;
+                        const slotRow = slot.parentElement;
+                        const newSlot = document.createElement('div');
+                        newSlot.className = 'mhw-slot-box';
+                        newSlot.dataset.lv = remainingBudget;
+                        newSlot.dataset.wasSplit = 'true';
+                        newSlot.innerHTML = `[${remainingBudget}] Empty Slot`;
+                        slot.after(newSlot);
+                        attachSlotHandlers(newSlot);
+
+                        jewelInventory[selectedDeco.idx].qty--;
+                        if (jewelInventory[selectedDeco.idx].qty <= 0) {
+                            card.querySelector(`.mhw-deco-btn[data-idx="${selectedDeco.idx}"]`).classList.remove('selected');
+                            selectedDeco = null;
+                        }
+                        updateBankUI();
+                    } else {
+                        slot.classList.add('mhw-slot-filled');
+                        slot.innerHTML = `<img src="${ICONS[selectedDeco.level]}" class="mhw-icon-img"> ${selectedDeco.name}`;
+                        slot.dataset.itemName = selectedDeco.name;
+                        jewelInventory[selectedDeco.idx].qty--;
+                        if (jewelInventory[selectedDeco.idx].qty <= 0) {
+                            card.querySelector(`.mhw-deco-btn[data-idx="${selectedDeco.idx}"]`).classList.remove('selected');
+                            selectedDeco = null;
+                        }
+                        updateBankUI();
+                    }
+                }
+            };
+            slot.oncontextmenu = (e) => { e.preventDefault(); removeDeco(); };
+        }
     }
 
     function initTransformer(wrap) {
