@@ -1,8 +1,9 @@
 // ==UserScript==
-// @name         MHW ASS - Professional Build Card (Interactive)
+// @name         MH WIKI ASS Build Card Maker.
 // @namespace    http://tampermonkey.net/
-// @version      5.2
-// @description  Interactive build card: TinyURL shortening, bottom-left QR positioning, and zero-slot filtering. Fixed deco parsing and slot assignment.
+// @version      3.5
+// @description  Legacy Works.
+// @author        Kat
 // @match         *://*.wiki-db.com/sim/*
 // @grant         none
 // @require       https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js
@@ -123,7 +124,7 @@
         return [];
     }
 
-    function extractData(containerDiv) {
+    function extractData(containerDiv, weaponType) {
         const tables = containerDiv.querySelectorAll('table');
         if (tables.length < 2) return null;
 
@@ -152,16 +153,27 @@
 
         if (slotRow) {
             const cells = slotRow.querySelectorAll('td');
-            const parseCellSlots = (cell, isComplex = false) => {
+            const parseCellSlots = (cell, isComplex = false, isCharm = false, weaponType = null) => {
                 if (!cell) return [];
                 const parts = isComplex ? cell.innerHTML.split('<br>') : [cell.innerText.trim()];
                 const results = [];
-                parts.forEach(p => {
+                parts.forEach((p, index) => {
                     const text = p.replace(/<[^>]*>/g, '').trim();
                     const slots = parseSlots(text);
                     if (slots.length > 0) {
                         let icon = null;
-                        if (p.includes('head.png')) icon = ICONS.HELM;
+                        if (isCharm) {
+                            // First part uses charm icon, second part uses weapon icon
+                            if (index === 0) {
+                                icon = '/static/mhsim/simicons/charm.png';
+                            } else if (index === 1 && weaponType) {
+                                icon = ICONS[weaponType];
+                            }
+                        } else if (p.includes('head.png')) {
+                            icon = ICONS.HELM;
+                        } else if (weaponType) {
+                            icon = ICONS[weaponType];
+                        }
                         results.push({ slots, icon });
                     }
                 });
@@ -191,12 +203,12 @@
             // Handle charm (always LAST in equipment array IF it exists, always at cells[7])
             const charmIndex = equipment.length - 1;
             if (charmIndex >= 0 && cells[7] && equipment[charmIndex].img && equipment[charmIndex].img.includes('charm.png')) {
-                equipment[charmIndex].multiSlots = parseCellSlots(cells[7], true);
+                equipment[charmIndex].multiSlots = parseCellSlots(cells[7], true, true, weaponType);
             }
 
             // Handle weapon (always at cells[1])
             if (cells[1]) {
-                const weaponMulti = parseCellSlots(cells[1], true);
+                const weaponMulti = parseCellSlots(cells[1], true, false, weaponType);
                 equipment.weaponData = { multiSlots: weaponMulti, innate: [] };
             }
         }
@@ -344,6 +356,34 @@
             };
         });
 
+        const checkAndCleanupRow = (slotRow) => {
+            if (!isLegacyMode || !slotRow || !slotRow.dataset.originalBudget) return;
+
+            // Use setTimeout to check after all removals in the current event loop
+            setTimeout(() => {
+                const allSlots = Array.from(slotRow.querySelectorAll('.mhw-slot-box'));
+                const allEmpty = allSlots.every(s => !s.dataset.itemName);
+
+                if (allEmpty) {
+                    const trueBudget = parseInt(slotRow.dataset.originalBudget);
+
+                    // Remove all split slots
+                    allSlots.forEach(s => s.remove());
+
+                    // Create fresh slot with correct budget
+                    const newSlot = document.createElement('div');
+                    newSlot.className = 'mhw-slot-box';
+                    newSlot.dataset.lv = trueBudget;
+                    newSlot.innerHTML = `[${trueBudget}] Empty Slot`;
+                    slotRow.appendChild(newSlot);
+                    attachSlotHandlers(newSlot);
+
+                    // Clear the row's original budget marker
+                    delete slotRow.dataset.originalBudget;
+                }
+            }, 0);
+        };
+
         card.querySelectorAll('.mhw-slot-box').forEach(slot => {
             const removeDeco = () => {
                 const currentInSlot = slot.dataset.itemName;
@@ -351,20 +391,14 @@
                     const item = jewelInventory.find(i => i.name === currentInSlot);
                     if (item) item.qty++;
                     slot.classList.remove('mhw-slot-filled');
-
-                    // In legacy mode, restore original budget if this was a split slot
-                    if (isLegacyMode && slot.dataset.originalBudget) {
-                        slot.dataset.lv = slot.dataset.originalBudget;
-                        delete slot.dataset.originalBudget;
-                        // Remove any sibling slot that was created from splitting
-                        const nextSlot = slot.nextElementSibling;
-                        if (nextSlot && nextSlot.classList.contains('mhw-slot-box') && nextSlot.dataset.wasSplit) {
-                            nextSlot.remove();
-                        }
-                    }
-
                     slot.innerHTML = `[${slot.dataset.lv}] Empty Slot`;
                     delete slot.dataset.itemName;
+
+                    // Schedule cleanup check for this row
+                    if (isLegacyMode) {
+                        checkAndCleanupRow(slot.parentElement);
+                    }
+
                     updateBankUI();
                     return true;
                 }
@@ -378,9 +412,11 @@
 
                     // Legacy mode budget system
                     if (isLegacyMode && decoLevel < slotLevel) {
-                        // Store original budget before splitting
-                        if (!slot.dataset.originalBudget) {
-                            slot.dataset.originalBudget = slotLevel;
+                        const slotRow = slot.parentElement;
+
+                        // Store original budget on the row itself (first time splitting)
+                        if (!slotRow.dataset.originalBudget) {
+                            slotRow.dataset.originalBudget = slotLevel;
                         }
 
                         // Fill current slot with the deco
@@ -391,7 +427,6 @@
 
                         // Create new slot for remaining budget
                         const remainingBudget = slotLevel - decoLevel;
-                        const slotRow = slot.parentElement;
                         const newSlot = document.createElement('div');
                         newSlot.className = 'mhw-slot-box';
                         newSlot.dataset.lv = remainingBudget;
@@ -437,6 +472,12 @@
                     slot.classList.remove('mhw-slot-filled');
                     slot.innerHTML = `[${slot.dataset.lv}] Empty Slot`;
                     delete slot.dataset.itemName;
+
+                    // Schedule cleanup check for this row
+                    if (isLegacyMode) {
+                        checkAndCleanupRow(slot.parentElement);
+                    }
+
                     updateBankUI();
                     return true;
                 }
@@ -448,7 +489,19 @@
                     const slotLevel = parseInt(slot.dataset.lv);
                     const decoLevel = parseInt(selectedDeco.level);
 
+                    // In legacy mode, prevent slotting into already-split slots if deco level > current slot level
+                    if (isLegacyMode && slot.dataset.originalBudget && decoLevel > slotLevel) {
+                        return; // Must remove existing deco first
+                    }
+
                     if (isLegacyMode && decoLevel < slotLevel) {
+                        const slotRow = slot.parentElement;
+
+                        // Store original budget on the row itself (first time splitting)
+                        if (!slotRow.dataset.originalBudget) {
+                            slotRow.dataset.originalBudget = slotLevel;
+                        }
+
                         slot.classList.add('mhw-slot-filled');
                         slot.innerHTML = `<img src="${ICONS[selectedDeco.level]}" class="mhw-icon-img"> ${selectedDeco.name}`;
                         slot.dataset.itemName = selectedDeco.name;
@@ -456,7 +509,6 @@
                         slot.dataset.lv = decoLevel;
 
                         const remainingBudget = oldLevel - decoLevel;
-                        const slotRow = slot.parentElement;
                         const newSlot = document.createElement('div');
                         newSlot.className = 'mhw-slot-box';
                         newSlot.dataset.lv = remainingBudget;
@@ -505,7 +557,7 @@
         controls.append(bInput, wInput, wSelect, legacyLabel, genBtn, dlBtn);
         wrap.prepend(controls);
 
-        genBtn.onclick = async () => { const data = extractData(wrap); if (data) await renderCard(wrap, data, bInput.value, wInput.value, wSelect.value); };
+        genBtn.onclick = async () => { const data = extractData(wrap, wSelect.value); if (data) await renderCard(wrap, data, bInput.value, wInput.value, wSelect.value); };
 
         dlBtn.onclick = () => {
             const card = wrap.querySelector('.mhw-card-wrapper');
