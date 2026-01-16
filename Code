@@ -29,8 +29,8 @@
         'SWA': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_8.png',
         'CB': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_9.png',
         'IG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_10.png',
-        'LBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_12.png',
-        'HBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_13.png',
+        'LBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_13.png',
+        'HBG': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_12.png',
         'Bow': 'https://raw.githubusercontent.com/Maybe-a/IconsforSearcher/refs/heads/main/Images/weapon_type_11.png',
         'HELM': '/static/mhsim/simicons/head.png'
     };
